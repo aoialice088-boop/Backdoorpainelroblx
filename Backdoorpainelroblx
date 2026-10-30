@@ -1,0 +1,1076 @@
+-- Engine: Roblox
+-- Versão: Atual (Ambiente Lua 5.1 padrão)
+-- Linguagem: Lua
+-- Executor: DELTA EXECUTOR
+
+-- Funções adicionadas:
+-- 1. Mudar Mapa - Remove mapa atual e cria novo
+-- 2. Mapa Mario - Constrói mapa do Mario com blocos, canos, moedas
+-- 3. Mapa Brainrot - Recria "Roube um Brainrot"
+-- 4. Transformar em Monstro - Vira monstro que mata ao tocar
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = Players.LocalPlayer
+local guiParent = game:GetService("CoreGui")
+
+-- Limpeza
+pcall(function()
+    for _, gui in pairs(guiParent:GetChildren()) do
+        if gui.Name == "N1K_BackdoorScanner" or gui.Name == "N1K_AdminPanel" or gui.Name == "N1K_MinimizedBall" then
+            gui:Destroy()
+        end
+    end
+end)
+
+-- ==================== SCANNER GUI ====================
+local scannerGui = Instance.new("ScreenGui")
+scannerGui.Name = "N1K_BackdoorScanner"
+scannerGui.ResetOnSpawn = false
+scannerGui.IgnoreGuiInset = true
+scannerGui.Parent = guiParent
+
+local scannerFrame = Instance.new("Frame")
+scannerFrame.Size = UDim2.new(0, 320, 0, 180)
+scannerFrame.Position = UDim2.new(0.5, -160, 0.5, -90)
+scannerFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+scannerFrame.BorderSizePixel = 0
+scannerFrame.Parent = scannerGui
+Instance.new("UICorner", scannerFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UIStroke", scannerFrame).Color = Color3.fromRGB(255, 0, 0)
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = scannerFrame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+
+local titleFix = Instance.new("Frame")
+titleFix.Size = UDim2.new(1, 0, 0, 8)
+titleFix.Position = UDim2.new(0, 0, 1, -8)
+titleFix.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+titleFix.BorderSizePixel = 0
+titleFix.Parent = titleBar
+
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -10, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "☠ N1K BACKDOOR SCANNER"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 14
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = titleBar
+
+local scanText = Instance.new("TextLabel")
+scanText.Size = UDim2.new(1, -20, 1, -50)
+scanText.Position = UDim2.new(0, 10, 0, 40)
+scanText.BackgroundTransparency = 1
+scanText.Text = "Iniciando scan...\nAguarde."
+scanText.TextColor3 = Color3.fromRGB(255, 255, 255)
+scanText.Font = Enum.Font.Code
+scanText.TextSize = 12
+scanText.TextWrapped = true
+scanText.TextYAlignment = Enum.TextYAlignment.Top
+scanText.Parent = scannerFrame
+
+-- ==================== SCANNER ====================
+local foundBackdoors = {}
+local workingRemote = nil
+
+local knownBackdoors = {"hiddenadmin", "hdadmin", "kohl", "feather", "admin", "mod", "backdoor", "exploit", "hiddensystem", "remotesystem", "adminpanel", "modpanel", "serveradmin", "gameadmin", "fe"}
+
+local function isBackdoorName(name)
+    local nameLower = string.lower(name)
+    for _, keyword in ipairs(knownBackdoors) do
+        if string.find(nameLower, keyword) then return true end
+    end
+    return false
+end
+
+local function runScan()
+    task.wait(0.5)
+    scanText.Text = "[1/3] Procurando RemoteEvents suspeitos..."
+    task.wait(0.3)
+    
+    for _, obj in pairs(game:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            if isBackdoorName(obj.Name) then
+                table.insert(foundBackdoors, {type = obj.ClassName, name = obj:GetFullName(), obj = obj})
+                if not workingRemote then workingRemote = obj end
+            end
+        end
+        task.wait()
+    end
+    
+    scanText.Text = "[2/3] Encontrados " .. #foundBackdoors .. " backdoors..."
+    task.wait(0.5)
+    
+    if #foundBackdoors == 0 then
+        scanText.Text = "[2/3] Testando formato de comandos..."
+        task.wait(0.3)
+        
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj:IsA("RemoteEvent") then
+                local ok = pcall(function() obj:FireServer("admin", "test") end)
+                if ok then
+                    table.insert(foundBackdoors, {type = "RemoteEvent", name = obj:GetFullName(), obj = obj})
+                    if not workingRemote then workingRemote = obj end
+                    break
+                end
+            end
+            task.wait()
+        end
+    end
+    
+    scanText.Text = "[3/3] Finalizando..."
+    task.wait(0.5)
+    
+    if #foundBackdoors > 0 then
+        scanText.Text = "⚠️ BACKDOORS: " .. #foundBackdoors .. "\n✅ Clique em INJETAR"
+        scanText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(2)
+        scannerGui:Destroy()
+        createAdminPanel()
+    else
+        scanText.Text = "❌ NENHUM BACKDOOR\nPainel NÃO será liberado."
+        scanText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end
+end
+
+task.spawn(runScan)
+
+-- ==================== ADMIN PANEL ====================
+function createAdminPanel()
+    local adminGui = Instance.new("ScreenGui")
+    adminGui.Name = "N1K_AdminPanel"
+    adminGui.ResetOnSpawn = false
+    adminGui.IgnoreGuiInset = true
+    adminGui.Parent = guiParent
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 320, 0, 520)
+    mainFrame.Position = UDim2.new(0.5, -160, 0.5, -260)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = adminGui
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+    Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(255, 0, 0)
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 35)
+    titleBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
+
+    local titleFix = Instance.new("Frame")
+    titleFix.Size = UDim2.new(1, 0, 0, 8)
+    titleFix.Position = UDim2.new(0, 0, 1, -8)
+    titleFix.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    titleFix.BorderSizePixel = 0
+    titleFix.Parent = titleBar
+
+    local titleText = Instance.new("TextLabel")
+    titleText.Size = UDim2.new(1, -40, 1, 0)
+    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.BackgroundTransparency = 1
+    titleText.Text = "☠ N1K ADMIN PRO"
+    titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleText.Font = Enum.Font.GothamBold
+    titleText.TextSize = 14
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.Parent = titleBar
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 28, 0, 28)
+    closeBtn.Position = UDim2.new(1, -32, 0, 3)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+    closeBtn.Text = "—"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 16
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Parent = titleBar
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+
+    -- Status
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(0.9, 0, 0, 25)
+    statusLabel.Position = UDim2.new(0.05, 0, 0.08, 0)
+    statusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    statusLabel.Text = "⚠️ Clique em INJETAR"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+    statusLabel.Font = Enum.Font.GothamBold
+    statusLabel.TextSize = 12
+    statusLabel.Parent = mainFrame
+    Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
+
+    -- INJECT Button
+    local injectBtn = Instance.new("TextButton")
+    injectBtn.Size = UDim2.new(0.9, 0, 0, 35)
+    injectBtn.Position = UDim2.new(0.05, 0, 0.14, 0)
+    injectBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    injectBtn.Text = "💉 INJETAR"
+    injectBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    injectBtn.Font = Enum.Font.GothamBold
+    injectBtn.TextSize = 14
+    injectBtn.BorderSizePixel = 0
+    injectBtn.Parent = mainFrame
+    Instance.new("UICorner", injectBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Target Selector
+    local targetSelector = Instance.new("TextButton")
+    targetSelector.Size = UDim2.new(0.9, 0, 0, 28)
+    targetSelector.Position = UDim2.new(0.05, 0, 0.22, 0)
+    targetSelector.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    targetSelector.Text = "Alvo: TODOS"
+    targetSelector.TextColor3 = Color3.fromRGB(255, 255, 255)
+    targetSelector.Font = Enum.Font.GothamSemibold
+    targetSelector.TextSize = 11
+    targetSelector.BorderSizePixel = 0
+    targetSelector.Visible = false
+    targetSelector.Parent = mainFrame
+    Instance.new("UICorner", targetSelector).CornerRadius = UDim.new(0, 6)
+
+    local selectedTarget = "TODOS"
+    targetSelector.MouseButton1Click:Connect(function()
+        local targets = {"TODOS"}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then table.insert(targets, p.Name) end
+        end
+        local idx = 1
+        for i, name in ipairs(targets) do
+            if name == selectedTarget then idx = i break end
+        end
+        idx = (idx % #targets) + 1
+        selectedTarget = targets[idx]
+        targetSelector.Text = "Alvo: " .. selectedTarget
+    end)
+
+    -- Buttons Container
+    local buttonsContainer = Instance.new("ScrollingFrame")
+    buttonsContainer.Size = UDim2.new(1, 0, 0.7, 0)
+    buttonsContainer.Position = UDim2.new(0, 0, 0.28, 0)
+    buttonsContainer.BackgroundTransparency = 1
+    buttonsContainer.BorderSizePixel = 0
+    buttonsContainer.ScrollBarThickness = 4
+    buttonsContainer.Visible = false
+    buttonsContainer.Parent = mainFrame
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 4)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = buttonsContainer
+
+    local function getTargets()
+        if selectedTarget == "TODOS" then
+            local t = {}
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= player then table.insert(t, p) end
+            end
+            return t
+        else
+            local p = Players:FindFirstChild(selectedTarget)
+            return p and {p} or {}
+        end
+    end
+
+    local function sendCommand(cmd, ...)
+        if not workingRemote then return false end
+        local args = {...}
+        local formats = {
+            function() workingRemote:FireServer(cmd, unpack(args)) end,
+            function() workingRemote:FireServer({cmd, unpack(args)}) end,
+            function() workingRemote:FireServer({Command = cmd, Args = args}) end,
+        }
+        for _, fn in ipairs(formats) do
+            local ok = pcall(fn)
+            if ok then return true end
+        end
+        return false
+    end
+
+    -- Executa código no servidor via backdoor
+    local function executeServer(code)
+        if not workingRemote then return false end
+        local formats = {
+            function() workingRemote:FireServer("loadstring", code) end,
+            function() workingRemote:FireServer({loadstring = code}) end,
+            function() workingRemote:FireServer("execute", code) end,
+            function() workingRemote:FireServer({cmd = "loadstring", code = code}) end,
+        }
+        for _, fn in ipairs(formats) do
+            local ok = pcall(fn)
+            if ok then return true end
+        end
+        return false
+    end
+
+    local function createBtn(name, color, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -20, 0, 30)
+        btn.BackgroundColor3 = color
+        btn.Text = name
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 11
+        btn.BorderSizePixel = 0
+        btn.LayoutOrder = #buttonsContainer:GetChildren()
+        btn.Parent = buttonsContainer
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+        btn.MouseButton1Click:Connect(callback)
+    end
+
+    -- ADMIN FUNCTIONS
+    createBtn("KICK ALL", Color3.fromRGB(200, 0, 0), function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then
+                sendCommand("kick", p.Name)
+                pcall(function() p:Kick("Removido pelo Admin.") end)
+            end
+        end
+    end)
+
+    createBtn("BAN ALL", Color3.fromRGB(150, 0, 0), function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then
+                sendCommand("ban", p.Name)
+                pcall(function() p:Kick("Banido pelo Admin.") end)
+            end
+        end
+    end)
+
+    createBtn("FREEZE", Color3.fromRGB(0, 100, 255), function()
+        for _, p in ipairs(getTargets()) do
+            sendCommand("freeze", p.Name)
+            if p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.Anchored = true end
+            end
+        end
+    end)
+
+    createBtn("UNFREEZE", Color3.fromRGB(0, 150, 255), function()
+        for _, p in ipairs(getTargets()) do
+            sendCommand("unfreeze", p.Name)
+            if p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.Anchored = false end
+            end
+        end
+    end)
+
+    createBtn("BRING", Color3.fromRGB(255, 150, 0), function()
+        local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        for _, p in ipairs(getTargets()) do
+            sendCommand("bring", p.Name)
+            if p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.CFrame = myHRP.CFrame + Vector3.new(math.random(-5, 5), 0, math.random(-5, 5)) end
+            end
+        end
+    end)
+
+    createBtn("GOTO", Color3.fromRGB(255, 200, 0), function()
+        local myHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        for _, p in ipairs(getTargets()) do
+            sendCommand("goto", p.Name)
+            if p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then myHRP.CFrame = hrp.CFrame + Vector3.new(5, 0, 0) end
+            end
+        end
+    end)
+
+    createBtn("KILL", Color3.fromRGB(100, 0, 0), function()
+        for _, p in ipairs(getTargets()) do
+            sendCommand("kill", p.Name)
+            if p.Character then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.Health = 0 end
+            end
+        end
+    end)
+
+    -- MAP FUNCTIONS
+    createBtn("🗺️ LIMPAR MAPA ATUAL", Color3.fromRGB(80, 80, 80), function()
+        local code = [[
+            for _, obj in pairs(workspace:GetChildren()) do
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+                    obj:Destroy()
+                end
+            end
+        ]]
+        executeServer(code)
+        statusLabel.Text = "✅ Mapa limpo"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+
+    createBtn("🍄 MAPA MARIO", Color3.fromRGB(0, 150, 255), function()
+        local code = [[
+            -- Limpa mapa
+            for _, obj in pairs(workspace:GetChildren()) do
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+                    obj:Destroy()
+                end
+            end
+            
+            -- Chão
+            local ground = Instance.new("Part")
+            ground.Size = Vector3.new(200, 1, 200)
+            ground.Position = Vector3.new(0, 0, 0)
+            ground.Anchored = true
+            ground.BrickColor = BrickColor.new("Bright green")
+            ground.Parent = workspace
+            
+            -- Blocos de pergunta
+            for i = 1, 10 do
+                local block = Instance.new("Part")
+                block.Size = Vector3.new(4, 4, 4)
+                block.Position = Vector3.new(i * 10, 5, 0)
+                block.Anchored = true
+                block.BrickColor = BrickColor.new("Bright yellow")
+                block.Parent = workspace
+                
+                local mesh = Instance.new("SpecialMesh")
+                mesh.MeshType = Enum.MeshType.Brick
+                mesh.Parent = block
+            end
+            
+            -- Canos
+            for i = 1, 5 do
+                local pipe = Instance.new("Part")
+                pipe.Size = Vector3.new(6, 10, 6)
+                pipe.Position = Vector3.new(i * 20 - 50, 5, 20)
+                pipe.Anchored = true
+                pipe.BrickColor = BrickColor.new("Bright green")
+                pipe.Parent = workspace
+            end
+            
+            -- Moedas
+            for i = 1, 20 do
+                local coin = Instance.new("Part")
+                coin.Size = Vector3.new(2, 2, 0.5)
+                coin.Position = Vector3.new(math.random(-80, 80), 3, math.random(-80, 80))
+                coin.Anchored = true
+                coin.BrickColor = BrickColor.new("Bright yellow")
+                coin.Material = Enum.Material.Neon
+                coin.Parent = workspace
+            end
+            
+            print("Mapa Mario criado!")
+        ]]
+        executeServer(code)
+        statusLabel.Text = "✅ Mapa Mario criado"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+
+    createBtn("🧠 MAPA BRAINROT", Color3.fromRGB(150, 0, 255), function()
+        local code = [[
+            -- Limpa mapa
+            for _, obj in pairs(workspace:GetChildren()) do
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+                    obj:Destroy()
+                end
+            end
+            
+            -- Base
+            local base = Instance.new("Part")
+            base.Size = Vector3.new(100, 1, 100)
+            base.Position = Vector3.new(0, 0, 0)
+            base.Anchored = true
+            base.BrickColor = BrickColor.new("Dark stone grey")
+            base.Parent = workspace
+            
+            -- Brainrots (esferas roxas)
+            for i = 1, 15 do
+                local brainrot = Instance.new("Part")
+                brainrot.Shape = Enum.PartType.Ball
+                brainrot.Size = Vector3.new(5, 5, 5)
+                brainrot.Position = Vector3.new(math.random(-40, 40), 3, math.random(-40, 40))
+                brainrot.Anchored = false
+                brainrot.BrickColor = BrickColor.new("Magenta")
+                brainrot.Material = Enum.Material.Neon
+                brainrot.Parent = workspace
+                
+                -- Script de coleta
+                local script = Instance.new("Script")
+                script.Source = [[
+                    local brainrot = script.Parent
+                    brainrot.Touched:Connect(function(hit)
+                        local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+                        if player then
+                            print(player.Name .. " pegou um brainrot!")
+                            brainrot:Destroy()
+                        end
+                    end)
+                ]]
+                script.Parent = brainrot
+            end
+            
+            -- Obstáculos
+            for i = 1, 10 do
+                local obstacle = Instance.new("Part")
+                obstacle.Size = Vector3.new(8, 8, 8)
+                obstacle.Position = Vector3.new(math.random(-40, 40), 4, math.random(-40, 40))
+                obstacle.Anchored = true
+                obstacle.BrickColor = BrickColor.new("Really black")
+                obstacle.Parent = workspace
+            end
+            
+            print("Mapa Brainrot criado!")
+        ]]
+        executeServer(code)
+        statusLabel.Text = "✅ Mapa Brainrot criado"
+
+                    obj:Destroy()
+            
+                block.Position = Vector3.new(i * 10, 5, 0)
+            -- Blocos de pergunta
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                        local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+                coin.Material = Enum.Material.Neon
+            print("Mapa Mario criado!")
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+            for i = 1, 20 do
+            ground.Anchored = true
+        if not myHRP then return end
+        end
+        executeServer(code)
+            
+            base.BrickColor = BrickColor.new("Dark stone grey")
+                if hrp then myHRP.CFrame = hrp.CFrame + Vector3.new(5, 0, 0) end
+    createBtn("KILL", Color3.fromRGB(100, 0, 0), function()
+                local mesh = Instance.new("SpecialMesh")
+            local base = Instance.new("Part")
+                if hum then hum.Health = 0 end
+                pipe.Size = Vector3.new(6, 10, 6)
+    createBtn("🍄 MAPA MARIO", Color3.fromRGB(0, 150, 255), function()
+            -- Limpa mapa
+            for i = 1, 15 do
+                brainrot.Parent = workspace
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    -- MAP FUNCTIONS
+                end
+            -- Chão
+                block.Anchored = true
+            for i = 1, 10 do
+    end)
+                    obj:Destroy()
+        ]]
+                    obj:Destroy()
+            ground.BrickColor = BrickColor.new("Bright green")
+        for _, p in ipairs(getTargets()) do
+    end)
+        statusLabel.Text = "✅ Mapa limpo"
+            end
+        for _, p in ipairs(getTargets()) do
+            end
+        local code = [[
+    end)
+
+    createBtn("👹 VIRAR MONSTRO", Color3.fromRGB(200, 0, 100), function()
+        local character = player.Character
+        if not character then return end
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        
+        -- Cria modelo de monstro
+        local monster = Instance.new("Model")
+        monster.Name = "Monster_" .. player.Name
+        monster.Parent = workspace
+        
+        -- Corpo do monstro
+        local body = Instance.new("Part")
+        body.Name = "HumanoidRootPart"
+        body.Size = Vector3.new(4, 6, 2)
+        body.BrickColor = BrickColor.new("Really red")
+        body.Material = Enum.Material.Neon
+        body.CanCollide = false
+        body.Parent = monster
+        
+        -- Cabeça
+        local head = Instance.new("Part")
+        head.Name = "Head"
+        head.Shape = Enum.PartType.Ball
+        head.Size = Vector3.new(3, 3, 3)
+        head.BrickColor = BrickColor.new("Really red")
+        head.Material = Enum.Material.Neon
+        head.CanCollide = false
+        head.Parent = monster
+        
+        local weld = Instance.new("Weld")
+        weld.Part0 = body
+        weld.Part1 = head
+        weld.C0 = CFrame.new(0, 4, 0)
+        weld.Parent = body
+        
+        -- Script de dano
+        local damageScript = Instance.new("Script")
+        damageScript.Source = [[
+            local monster = script.Parent
+            local body = monster:FindFirstChild("HumanoidRootPart")
+            
+            body.Touched:Connect(function(hit)
+                local character = hit.Parent
+                local player = game.Players:GetPlayerFromCharacter(character)
+                if player and player ~= ]] .. player.Name .. [[ then
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+        weld.Part0 = body
+            end
+            base.Anchored = true
+                            brainrot:Destroy()
+        body.Material = Enum.Material.Neon
+                
+            -- Base
+                script.Source = [[
+            
+                local pipe = Instance.new("Part")
+        local code = [[
+            -- Brainrots (esferas roxas)
+                brainrot.Material = Enum.Material.Neon
+        local monster = Instance.new("Model")
+                    obj:Destroy()
+            
+                block.Position = Vector3.new(i * 10, 5, 0)
+            -- Blocos de pergunta
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                        local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+                coin.Material = Enum.Material.Neon
+            print("Mapa Mario criado!")
+            for i = 1, 20 do
+            ground.Anchored = true
+                    if humanoid then
+        weld.Part1 = head
+            
+            base.BrickColor = BrickColor.new("Dark stone grey")
+                local mesh = Instance.new("SpecialMesh")
+            local base = Instance.new("Part")
+                pipe.Size = Vector3.new(6, 10, 6)
+            -- Limpa mapa
+            for i = 1, 15 do
+                brainrot.Parent = workspace
+                end
+            -- Chão
+                block.Anchored = true
+            for i = 1, 10 do
+    end)
+        ]]
+            ground.BrickColor = BrickColor.new("Bright green")
+                        humanoid:TakeDamage(50)
+                    end
+                end
+            end)
+        ]]
+        damageScript.Parent = monster
+        
+        -- Move jogador pro monstro
+        hrp.CFrame = body.CFrame
+        
+        -- Esconde character original
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Transparency = 1
+            end
+        end
+        
+        statusLabel.Text = "✅ Você é um monstro!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+
+    createBtn("🐲 SPAWN DRAGÃO", Color3.fromRGB(255, 100, 0), function()
+        local code = [[
+            local dragon = Instance.new("Model")
+            dragon.Name = "Dragon"
+            dragon.Parent = workspace
+            
+            -- Corpo
+            local body = Instance.new("Part")
+            body.Size = Vector3.new(10, 8, 20)
+            body.Position = Vector3.new(0, 20, 0)
+            body.Anchored = false
+            body.BrickColor = BrickColor.new("Really red")
+            body.Material = Enum.Material.Neon
+            body.Parent = dragon
+            
+            -- Cabeça
+            local head = Instance.new("Part")
+            head.Shape = Enum.PartType.Ball
+            head.Size = Vector3.new(8, 8, 8)
+            head.Position = Vector3.new(0, 20, -12)
+            head.Anchored = false
+            head.BrickColor = BrickColor.new("Really red")
+            head.Material = Enum.Material.Neon
+            head.Parent = dragon
+            
+            local weld = Instance.new("Weld")
+            weld.Part0 = body
+            weld.Part1 = head
+            weld.C0 = CFrame.new(0, 0, -10)
+                        end
+                obstacle.Anchored = true
+        ]]
+        -- Esconde character original
+        end
+        statusLabel.Text = "✅ Você é um monstro!"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        body.Parent = monster
+            body.Material = Enum.Material.Neon
+            head.Shape = Enum.PartType.Ball
+    end)
+        monster.Parent = workspace
+        head.BrickColor = BrickColor.new("Really red")
+            
+                script.Parent = brainrot
+    createBtn("🐲 SPAWN DRAGÃO", Color3.fromRGB(255, 100, 0), function()
+        local weld = Instance.new("Weld")
+        head.CanCollide = false
+            for i = 1, 10 do
+            base.Position = Vector3.new(0, 0, 0)
+                            print(player.Name .. " pegou um brainrot!")
+        body.BrickColor = BrickColor.new("Really red")
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+            body.Size = Vector3.new(10, 8, 20)
+            
+                local script = Instance.new("Script")
+            local body = monster:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+            local dragon = Instance.new("Model")
+    createBtn("🧠 MAPA BRAINROT", Color3.fromRGB(150, 0, 255), function()
+            
+                brainrot.BrickColor = BrickColor.new("Magenta")
+        -- Cria modelo de monstro
+                if not obj:IsA("Terrain") and obj.Name ~= "Baseplate" then
+                obstacle.Size = Vector3.new(8, 8, 8)
+                brainrot.Position = Vector3.new(math.random(-40, 40), 3, math.random(-40, 40))
+                    brainrot.Touched:Connect(function(hit)
+            weld.Parent = body
+                    end)
+        damageScript.Parent = monster
+        for _, part in pairs(character:GetDescendants()) do
+        
+    end)
+            -- Cabeça
+        weld.Part0 = body
+            base.Anchored = true
+                            brainrot:Destroy()
+        body.Material = Enum.Material.Neon
+                    if humanoid then
+            body.Position = Vector3.new(0, 20, 0)
+            -- Base
+                script.Source = [[
+            
+            dragon.Name = "Dragon"
+        local code = [[
+            -- Brainrots (esferas roxas)
+                brainrot.Material = Enum.Material.Neon
+        local monster = Instance.new("Model")
+                    obj:Destroy()
+                        local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+            
+        
+            if part:IsA("BasePart") then
+        weld.Part1 = head
+            base.BrickColor = BrickColor.new("Dark stone grey")
+            body.Anchored = false
+            local base = Instance.new("Part")
+            dragon.Parent = workspace
+            -- Limpa mapa
+            for i = 1, 15 do
+                brainrot.Parent = workspace
+                end
+            -- Script de perseguição
+        -- Move jogador pro monstro
+                part.Transparency = 1
+            
+            local script = Instance.new("Script")
+        hrp.CFrame = body.CFrame
+            end
+            -- Corpo
+            script.Source = [[
+        
+                local dragon = script.Parent
+                local body = dragon:FindFirstChild("HumanoidRootPart") or dragon:FindFirstChildWhichIsA("Part")
+                
+                while wait(0.1) do
+                    local closestPlayer = nil
+                    local closestDist = math.huge
+                    
+                    for _, player in pairs(game.Players:GetPlayers()) do
+                        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                            local dist = (player.Character.HumanoidRootPart.Position - body.Position).Magnitude
+                            if dist < closestDist then
+                                closestDist = dist
+                                closestPlayer = player
+                            end
+                        end
+                    end
+                    
+                    if closestPlayer and closestDist < 100 then
+                        local direction = (closestPlayer.Character.HumanoidRootPart.Position - body.Position).Unit
+                        body.CFrame = body.CFrame + direction * 2
+                        
+                        -- Dano ao tocar
+                        body.Touched:Connect(function(hit)
+                            local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                            if humanoid then
+                                humanoid:TakeDamage(100)
+                            end
+                        end)
+                    end
+                end
+            ]]
+            script.Parent = dragon
+            
+            print("Dragão spawnado!")
+        ]]
+        executeServer(code)
+        statusLabel.Text = "✅ Dragão spawnado"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+
+    createBtn("💀 SPAWN ZUMBIS", Color3.fromRGB(100, 150, 100), function()
+        local code = [[
+            for i = 1, 10 do
+                local zombie = Instance.new("Model")
+                zombie.Name = "Zombie_" .. i
+                zombie.Parent = workspace
+                while wait(0.1) do
+            weld.Parent = body
+        weld.C0 = CFrame.new(0, 4, 0)
+                obstacle.Anchored = true
+        ]]
+                            if dist < closestDist then
+                                closestPlayer = player
+            ]]
+        -- Esconde character original
+        end
+        statusLabel.Text = "✅ Você é um monstro!"
+            local script = Instance.new("Script")
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        body.Parent = monster
+            weld.Part0 = body
+            body.Material = Enum.Material.Neon
+            head.Shape = Enum.PartType.Ball
+    end)
+                        end
+        monster.Parent = workspace
+        head.BrickColor = BrickColor.new("Really red")
+            
+    createBtn("🐲 SPAWN DRAGÃO", Color3.fromRGB(255, 100, 0), function()
+        local weld = Instance.new("Weld")
+                        body.Touched:Connect(function(hit)
+        head.CanCollide = false
+                local dragon = script.Parent
+                            local dist = (player.Character.HumanoidRootPart.Position - body.Position).Magnitude
+        body.BrickColor = BrickColor.new("Really red")
+                    local humanoid = character:FindFirstChildOfClass("Humanoid")
+                    
+            body.Size = Vector3.new(10, 8, 20)
+                    end
+            local body = monster:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+            local dragon = Instance.new("Model")
+        -- Cria modelo de monstro
+                
+                    local closestPlayer = nil
+            
+        damageScript.Parent = monster
+                                closestDist = dist
+            script.Parent = dragon
+        for _, part in pairs(character:GetDescendants()) do
+        
+    end)
+            weld.Part1 = head
+            -- Cabeça
+        weld.Part0 = body
+                            local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                local body = dragon:FindFirstChild("HumanoidRootPart") or dragon:FindFirstChildWhichIsA("Part")
+        body.Material = Enum.Material.Neon
+                    if humanoid then
+            body.Position = Vector3.new(0, 20, 0)
+                end
+            
+            dragon.Name = "Dragon"
+        local monster = Instance.new("Model")
+                local body = Instance.new("Part")
+        
+            if part:IsA("BasePart") then
+            weld.C0 = CFrame.new(0, 0, -10)
+        weld.Part1 = head
+                
+            body.Anchored = false
+            dragon.Parent = workspace
+                body.Size = Vector3.new(2, 4, 1)
+        -- Move jogador pro monstro
+                part.Transparency = 1
+            
+                body.Position = Vector3.new(math.random(-50, 50), 5, math.random(-50, 50))
+        hrp.CFrame = body.CFrame
+            end
+            -- Corpo
+                body.Anchored = false
+        
+                body.BrickColor = BrickColor.new("Dark green")
+                body.Parent = zombie
+                
+                local head = Instance.new("Part")
+                head.Shape = Enum.PartType.Ball
+                head.Size = Vector3.new(2, 2, 2)
+                head.BrickColor = BrickColor.new("Dark green")
+                head.Parent = zombie
+                
+                local weld = Instance.new("Weld")
+                weld.Part0 = body
+                weld.Part1 = head
+                weld.C0 = CFrame.new(0, 3, 0)
+                weld.Parent = body
+                
+                local script = Instance.new("Script")
+                script.Source = [[
+                    local zombie = script.Parent
+                    local body = zombie:FindFirstChildWhichIsA("Part")
+                    
+                    while wait(0.2) do
+                        for _, player in pairs(game.Players:GetPlayers()) do
+                            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                                local dist = (player.Character.HumanoidRootPart.Position - body.Position).Magnitude
+                                if dist < 30 then
+                                    local direction = (player.Character.HumanoidRootPart.Position - body.Position).Unit
+                                    body.CFrame = body.CFrame + direction * 1
+                                end
+                            end
+                        end
+                        
+                        body.Touched:Connect(function(hit)
+                            local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                            if humanoid then
+                                humanoid:TakeDamage(20)
+                            end
+                        end)
+                    end
+                ]]
+                script.Parent = zombie
+            end
+            
+            print("10 zumbis spawnados!")
+        ]]
+        executeServer(code)
+        statusLabel.Text = "✅ 10 zumbis spawnados"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    end)
+            body.Size = Vector3.new(10, 8, 20)
+                weld.Part1 = head
+                    end
+            local body = monster:FindFirstChild("HumanoidRootPart")
+            local dragon = Instance.new("Model")
+                local weld = Instance.new("Weld")
+                                local dist = (player.Character.HumanoidRootPart.Position - body.Position).Magnitude
+                    local closestPlayer = nil
+                ]]
+            
+                                    local direction = (player.Character.HumanoidRootPart.Position - body.Position).Unit
+                
+        damageScript.Parent = monster
+                                closestDist = dist
+            script.Parent = dragon
+        for _, part in pairs(character:GetDescendants()) do
+        
+            weld.Part1 = head
+            -- Cabeça
+        executeServer(code)
+                            local humanoid = hit.Parent:FindFirstChildOfClass("Humanoid")
+                            end
+
+                local body = dragon:FindFirstChild("HumanoidRootPart") or dragon:FindFirstChildWhichIsA("Part")
+                    if humanoid then
+            body.Position = Vector3.new(0, 20, 0)
+                end
+            
+            dragon.Name = "Dragon"
+                local script = Instance.new("Script")
+        
+            if part:IsA("BasePart") then
+            weld.C0 = CFrame.new(0, 0, -10)
+                        end)
+    -- Inject logic
+                
+            body.Anchored = false
+            dragon.Parent = workspace
+        -- Move jogador pro monstro
+                part.Transparency = 1
+    local injected = false
+            
+        hrp.CFrame = body.CFrame
+            end
+    injectBtn.MouseButton1Click:Connect(function()
+            -- Corpo
+        
+        if injected then return end
+        injected = true
+        injectBtn.Text = "✅ INJETADO"
+        injectBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+        statusLabel.Text = "✅ Backdoor ativo"
+        statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+        targetSelector.Visible = true
+        buttonsContainer.Visible = true
+    end)
+
+    -- Minimize Ball
+    local minBall = Instance.new("TextButton")
+    minBall.Name = "N1K_MinimizedBall"
+    minBall.Size = UDim2.new(0, 60, 0, 60)
+    minBall.Position = UDim2.new(0, 20, 0.5, -30)
+    minBall.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    minBall.Text = "☠"
+    minBall.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minBall.Font = Enum.Font.GothamBold
+    minBall.TextSize = 28
+    minBall.BorderSizePixel = 0
+    minBall.Visible = false
+    minBall.Parent = guiParent
+    Instance.new("UICorner", minBall).CornerRadius = UDim.new(1, 0)
+    Instance.new("UIStroke", minBall).Color = Color3.fromRGB(255, 255, 255)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        minBall.Visible = true
+    end)
+
+    minBall.MouseButton1Click:Connect(function()
+        mainFrame.Visible = true
+        minBall.Visible = false
+    end)
+
+    -- Draggable
+    local dragging, dragInput, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
